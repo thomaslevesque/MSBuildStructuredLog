@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Net;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -144,31 +146,76 @@ namespace StructuredLogViewer
 
         private async System.Threading.Tasks.Task UpdateApplicationAsync()
         {
-            using (var updateManager = await UpdateManager.GitHubUpdateManager("https://github.com/KirillOsenkov/MSBuildStructuredLog"))
+            const string repositoryUrl = "https://github.com/KirillOsenkov/MSBuildStructuredLog";
+            while (true)
             {
-                var result = await updateManager.UpdateApp();
-                var currentVersion = updateManager.CurrentlyInstalledVersion();
-                string message;
-                if (result == null || result.Version == currentVersion)
+                try
                 {
-                    message = "You have the latest version: " + currentVersion.ToString();
-                    FileAssociations.EnsureAssociationsSet();
-                }
-                else if (result.Version > currentVersion)
-                {
-                    message = "After restarting the app you will be on version " + result.Version.ToString();
-                }
-                else
-                {
-                    message = $"You're running a version ({currentVersion.ToString()}) which is newer than the latest stable ({result.Version}).";
-                }
+                    using (var updateManager = await UpdateManager.GitHubUpdateManager(repositoryUrl))
+                    {
+                        var result = await updateManager.UpdateApp();
+                        var currentVersion = updateManager.CurrentlyInstalledVersion();
+                        string message;
+                        if (result == null || result.Version == currentVersion)
+                        {
+                            message = "You have the latest version: " + currentVersion.ToString();
+                            FileAssociations.EnsureAssociationsSet();
+                        }
+                        else if (result.Version > currentVersion)
+                        {
+                            message = "After restarting the app you will be on version " + result.Version.ToString();
+                        }
+                        else
+                        {
+                            message = $"You're running a version ({currentVersion.ToString()}) which is newer than the latest stable ({result.Version}).";
+                        }
 
-                var welcomeScreen = mainContent.Content as WelcomeScreen;
-                if (welcomeScreen != null)
-                {
-                    welcomeScreen.Version = message;
+                        var welcomeScreen = mainContent.Content as WelcomeScreen;
+                        if (welcomeScreen != null)
+                        {
+                            welcomeScreen.Version = message;
+                        }
+                    }
+
                 }
+                catch (HttpRequestException ex) when (IsProxyAuthenticationError(ex))
+                {
+                    var proxy = WebRequest.DefaultWebProxy;
+                    if (proxy != null)
+                    {
+                        var proxyUrl = proxy.GetProxy(new Uri(repositoryUrl));
+                        var credentials = PromptForProxyCredentials(proxyUrl);
+                        if (credentials != null)
+                        {
+                            proxy.Credentials = credentials;
+                            continue;
+                        }
+                    }
+
+                }
+                return;
             }
+        }
+
+        private NetworkCredential PromptForProxyCredentials(Uri proxyUrl)
+        {
+            // TODO: show username/password dialog
+            throw new NotImplementedException();
+        }
+
+        private bool IsProxyAuthenticationError(Exception ex)
+        {
+            if (ex is WebException webEx && webEx.Response is HttpWebResponse response && response.StatusCode == HttpStatusCode.ProxyAuthenticationRequired)
+            {
+                return true;
+            }
+
+            if (ex.InnerException != null)
+            {
+                return IsProxyAuthenticationError(ex.InnerException);
+            }
+
+            return false;
         }
 
         private bool HandleArguments(string[] args)
