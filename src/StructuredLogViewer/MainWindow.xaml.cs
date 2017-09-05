@@ -124,31 +124,7 @@ namespace StructuredLogViewer
                     return;
                 }
 
-                using (var updateManager = await UpdateManager.GitHubUpdateManager("https://github.com/KirillOsenkov/MSBuildStructuredLog"))
-                {
-                    var result = await updateManager.UpdateApp();
-                    var currentVersion = updateManager.CurrentlyInstalledVersion();
-                    string message;
-                    if (result == null || result.Version == currentVersion)
-                    {
-                        message = "You have the latest version: " + currentVersion.ToString();
-                        FileAssociations.EnsureAssociationsSet();
-                    }
-                    else if (result.Version > currentVersion)
-                    {
-                        message = "After restarting the app you will be on version " + result.Version.ToString();
-                    }
-                    else
-                    {
-                        message = $"You're running a version ({currentVersion.ToString()}) which is newer than the latest stable ({result.Version}).";
-                    }
-
-                    var welcomeScreen = mainContent.Content as WelcomeScreen;
-                    if (welcomeScreen != null)
-                    {
-                        welcomeScreen.Version = message;
-                    }
-                }
+                await UpdateApplicationAsync();
             }
             catch (Exception ex)
             {
@@ -162,6 +138,35 @@ namespace StructuredLogViewer
                     }
 
                     welcomeScreen.Message = text;
+                }
+            }
+        }
+
+        private async System.Threading.Tasks.Task UpdateApplicationAsync()
+        {
+            using (var updateManager = await UpdateManager.GitHubUpdateManager("https://github.com/KirillOsenkov/MSBuildStructuredLog"))
+            {
+                var result = await updateManager.UpdateApp();
+                var currentVersion = updateManager.CurrentlyInstalledVersion();
+                string message;
+                if (result == null || result.Version == currentVersion)
+                {
+                    message = "You have the latest version: " + currentVersion.ToString();
+                    FileAssociations.EnsureAssociationsSet();
+                }
+                else if (result.Version > currentVersion)
+                {
+                    message = "After restarting the app you will be on version " + result.Version.ToString();
+                }
+                else
+                {
+                    message = $"You're running a version ({currentVersion.ToString()}) which is newer than the latest stable ({result.Version}).";
+                }
+
+                var welcomeScreen = mainContent.Content as WelcomeScreen;
+                if (welcomeScreen != null)
+                {
+                    welcomeScreen.Version = message;
                 }
             }
         }
